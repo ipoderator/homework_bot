@@ -1,14 +1,13 @@
-import requests
 import os
-
-import logging
 import time
-from time import sleep
+import exceptions
+import logging
+
 from http import HTTPStatus
 from dotenv import load_dotenv
 
+import requests
 import telegram
-
 
 load_dotenv()
 
@@ -19,7 +18,7 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
-payload = {'from_date': 0}
+PAYLOAD = {'from_date': 0}
 
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -27,33 +26,31 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
+logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG,
     filename='main.log',
     filemode='w',
+    handlers=logger.addHandler(logging.StreamHandler()),
     format='%(asctime)s, %(name)s, %(levelname)s, %(message)s'
 )
-logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler())
 
 
-def check_tokens():
+def check_tokens() -> list:
     """
     Проверяет доступность.
     переменных окружения,
     которые необходимы для работы программы
     """
+    logger.debug('Проверка токенов')
     return all(
-        [PRACTICUM_TOKEN,
+        (PRACTICUM_TOKEN,
          TELEGRAM_TOKEN,
-         TELEGRAM_CHAT_ID]
+         TELEGRAM_CHAT_ID)
     )
 
 
-logger.debug('С токенами все ОК')
-
-
-def send_message(bot, message):
+def send_message(bot: telegram.Bot, message: str) -> None:
     """
     Отправляет сообщение в Telegram чат.
     определяемый переменной окружения
@@ -63,36 +60,33 @@ def send_message(bot, message):
     try:
         message = 'Сообщение доставлено'
         bot.send_message(TELEGRAM_CHAT_ID, message)
-    except telegram.error.NetworkError:
-        sleep(5)
+        logger.debug(f'Сообщение отправлено {message}')
     except telegram.error.TelegramError:
         logging.error('Сообщение не доставлено')
-    else:
-        logging.debug('Сообщение отправлено')
 
 
-def get_api_answer(timestamp):
+def get_api_answer(timestamp: int) -> dict:
     """
     Делает запрос к единственному эндпоинту API-сервиса.
     В качестве параметра в функцию передается временная метка
     В случае успешного запроса должна вернуть ответ API,
     приведя его из формата JSON к типам данных Python.
     """
+    logger.debug('Запрос к эндпоинту прошел успешно')
     params = {'from_date': timestamp}
     try:
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=params)
-    except Exception:
-        logger.error(f'Ошибка при запросе: {Exception}')
+    except requests.RequestException as error:
+        logger.error(f'Ошибка при запросе: {error}')
     else:
         if homework_statuses.status_code != HTTPStatus.OK:
             error_message = 'Статус != 200'
             raise requests.HTTPError(error_message)
         return homework_statuses.json()
-    logger.debug('Запрос к эндпоинту прошел успешно')
 
 
-def check_response(response):
+def check_response(response: dict) -> list:
     """
     Проверяет ответ API на соответствие документации.
     из урока API сервиса
@@ -112,7 +106,7 @@ def check_response(response):
     return homeworks
 
 
-def parse_status(homework):
+def parse_status(homework: dict) -> str:
     """
     Извлекает из информации о конкретной домашней.
     работе статус этой работы.
@@ -138,9 +132,6 @@ def parse_status(homework):
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
-logger.debug('Статус успешно получен')
-
-
 def main():
     """Основная логика работы бота."""
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
@@ -161,9 +152,12 @@ def main():
                 send_message(bot, message)
             else:
                 return 'Нет подходящего статуса для ответа'
-
-        except Exception:
-            message = f'Сбой в работе программы: {Exception}'
+            """
+            Не знал какое здесь может быть исключение,
+            решил создать кастомное
+            """
+        except exceptions.ProgramError as error:
+            message = f'Сбой в работе программы: {error}'
             logging.error(message)
             send_message(bot, message)
         else:
