@@ -1,13 +1,13 @@
 import os
 import time
-import exceptions
-import logging
-
 from http import HTTPStatus
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
+import logging
 import requests
 import telegram
+
+import exceptions
 
 load_dotenv()
 
@@ -79,6 +79,8 @@ def get_api_answer(timestamp: int) -> dict:
             ENDPOINT, headers=HEADERS, params=params)
     except requests.RequestException as error:
         logger.error(f'Ошибка при запросе: {error}')
+        message_error = (f'Ошибка {error} при запросе')
+        raise exceptions.RequestError(message_error)
     else:
         if homework_statuses.status_code != HTTPStatus.OK:
             error_message = 'Статус != 200'
@@ -98,11 +100,10 @@ def check_response(response: dict) -> list:
     if 'homeworks' not in response:
         raise KeyError('Нет ключа homeworks в ответе от API')
 
-    homeworks = response['homeworks']
+    homeworks = response.get('homeworks')
     if not isinstance(homeworks, list):
         raise TypeError('Переменная не соответствует типу "list"')
-    else:
-        logger.debug('Ответ от API соответ. документации')
+    logger.debug('Ответ от API соответ. документации')
     return homeworks
 
 
@@ -119,12 +120,12 @@ def parse_status(homework: dict) -> str:
     if not isinstance(homework, dict):
         raise TypeError('Передан не словарь')
 
-    if 'status' not in homework:
+    if homework_status is None:
         raise KeyError('Нет такого ключа')
 
-    if 'homework_name' not in homework:
+    if homework_name is None:
         raise KeyError('Нет такого ключа')
-
+    """'Морж' на 3.11 не работает"""
     if homework_status not in HOMEWORK_VERDICTS:
         raise KeyError('Нет такого статуса')
 
@@ -137,7 +138,7 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
 
-    if check_tokens() is not True:
+    if not check_tokens():
         logger.critical('Ошибка в переменных окружения')
         raise SystemExit
     while True:
@@ -156,12 +157,10 @@ def main():
             Не знал какое здесь может быть исключение,
             решил создать кастомное
             """
-        except exceptions.ProgramError as error:
+        except (KeyError, TypeError, requests.HTTPError) as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
             send_message(bot, message)
-        else:
-            logger.error('Ошибка в цикле True')
         finally:
             time.sleep(RETRY_PERIOD)
 

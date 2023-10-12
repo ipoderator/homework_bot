@@ -1,4 +1,2 @@
-class ProgramError(Exception):
-    """Неверный ответ"""
-    pass
-
+class RequestError(Exception):
+    """Ошибка запроса"""
