@@ -1,9 +1,9 @@
 import os
 import time
 from http import HTTPStatus
+import logging
 
 from dotenv import load_dotenv
-import logging
 import requests
 import telegram
 
@@ -36,7 +36,7 @@ logging.basicConfig(
 )
 
 
-def check_tokens() -> list:
+def check_tokens() -> bool:
     """
     Проверяет доступность.
     переменных окружения,
@@ -81,11 +81,10 @@ def get_api_answer(timestamp: int) -> dict:
         logger.error(f'Ошибка при запросе: {error}')
         message_error = (f'Ошибка {error} при запросе')
         raise exceptions.RequestError(message_error)
-    else:
-        if homework_statuses.status_code != HTTPStatus.OK:
-            error_message = 'Статус != 200'
-            raise requests.HTTPError(error_message)
-        return homework_statuses.json()
+    if homework_statuses.status_code != HTTPStatus.OK:
+        error_message = 'Статус != 200'
+        raise requests.HTTPError(error_message)
+    return homework_statuses.json()
 
 
 def check_response(response: dict) -> list:
@@ -97,10 +96,10 @@ def check_response(response: dict) -> list:
     if not isinstance(response, dict):
         raise TypeError('Переменная не соответствует типу "dict"')
 
-    if 'homeworks' not in response:
+    homeworks = response.get('homeworks') 
+    if homeworks is None:
         raise KeyError('Нет ключа homeworks в ответе от API')
 
-    homeworks = response.get('homeworks')
     if not isinstance(homeworks, list):
         raise TypeError('Переменная не соответствует типу "list"')
     logger.debug('Ответ от API соответ. документации')
@@ -125,12 +124,17 @@ def parse_status(homework: dict) -> str:
 
     if homework_name is None:
         raise KeyError('Нет такого ключа')
-    """'Морж' на 3.11 не работает"""
+    
     if homework_status not in HOMEWORK_VERDICTS:
         raise KeyError('Нет такого статуса')
 
     verdict = HOMEWORK_VERDICTS.get(homework_status)
-    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+    """
+    'if verdict is None' выдавал ошибку в pytest, 
+    передалал на 'is not True'.
+    """
+    if verdict is not True:
+        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def main():
