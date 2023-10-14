@@ -96,7 +96,7 @@ def check_response(response: dict) -> list:
     if not isinstance(response, dict):
         raise TypeError('Переменная не соответствует типу "dict"')
 
-    homeworks = response.get('homeworks') 
+    homeworks = response.get('homeworks')
     if homeworks is None:
         raise KeyError('Нет ключа homeworks в ответе от API')
 
@@ -124,13 +124,13 @@ def parse_status(homework: dict) -> str:
 
     if homework_name is None:
         raise KeyError('Нет такого ключа')
-    
+
     if homework_status not in HOMEWORK_VERDICTS:
         raise KeyError('Нет такого статуса')
 
     verdict = HOMEWORK_VERDICTS.get(homework_status)
     """
-    'if verdict is None' выдавал ошибку в pytest, 
+    'if verdict is None' выдавал ошибку в pytest,
     передалал на 'is not True'.
     """
     if verdict is not True:
@@ -156,7 +156,8 @@ def main():
                 message = parse_status(new_homeworks)
                 send_message(bot, message)
             else:
-                return 'Нет подходящего статуса для ответа'
+                bot_send_message = 'Нет подходящего статуса для ответа'
+                send_message(bot, bot_send_message)
             """
             Не знал какое здесь может быть исключение,
             решил создать кастомное
